@@ -1,0 +1,44 @@
+# Run pre-built images from GitHub Container Registry (no local build).
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: focusstack-postgres
+    environment:
+      POSTGRES_DB: focusstack
+      POSTGRES_USER: focusstack
+      POSTGRES_PASSWORD: focusstack
+    ports:
+      - "5432:5432"
+    volumes:
+      - focusstack_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U focusstack -d focusstack"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: ghcr.io/pranayranka45-art/focusstack-api:latest
+    container_name: focusstack-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://focusstack:focusstack@db:5432/focusstack
+      CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"
+
+  web:
+    image: ghcr.io/pranayranka45-art/focusstack_docker-ghcr:latest
+    container_name: focusstack-web
+    environment:
+      API_UPSTREAM_HOST: api
+      API_UPSTREAM_PORT: 8000
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  focusstack_pgdata:
