@@ -5,16 +5,16 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: write
-
-env:
-  REGISTRY: ghcr.io
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+      WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/focusstack-app-repo-web
+      API_IMAGE: ghcr.io/${{ github.repository_owner }}/focusstack-app-repo-api
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,14 +23,16 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract Docker metadata (web)
         id: meta-web
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/focusstack_docker-ghcr
+          images: ${{ env.WEB_IMAGE }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - name: Build and push web image
         uses: docker/build-push-action@v6
@@ -44,7 +46,9 @@ jobs:
         id: meta-api
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/focusstack-api
+          images: ${{ env.API_IMAGE }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - name: Build and push api image
         uses: docker/build-push-action@v6
