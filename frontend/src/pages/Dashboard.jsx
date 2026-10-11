@@ -15,13 +15,15 @@ function Stat({ label, value, hint }) {
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [health, setHealth] = useState(null);
+  const [statsError, setStatsError] = useState(false);
 
   useEffect(() => {
-    api.getStats().then(setStats).catch(console.error);
+    api.getStats().then(setStats).catch((e) => {
+      console.error(e);
+      setStatsError(true);
+    });
     api.health().then(setHealth).catch(console.error);
   }, []);
-
-  if (!stats) return <p className="text-muted">Opening the studio…</p>;
 
   return (
     <div className="space-y-8">
@@ -36,6 +38,21 @@ export default function Dashboard() {
         </p>
       </header>
 
+      {statsError && (
+        <p className="card text-sm text-muted">
+          Couldn't reach the FocusStack API. Pages that need saved data (templates, maps, lab) won't work until it's back.
+        </p>
+      )}
+
+      {!stats && !statsError && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="card h-24 animate-pulse" />
+          ))}
+        </div>
+      )}
+
+      {stats && (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Pages" value={stats.documents_total} hint={`${stats.blogs} blog · ${stats.essays} essays`} />
         <Stat label="Words" value={stats.words_total ?? 0} hint="Across essays and posts" />
@@ -47,6 +64,7 @@ export default function Dashboard() {
           hint={`${stats.income_total.toFixed(0)} in · ${stats.expense_total.toFixed(0)} out`}
         />
       </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {[

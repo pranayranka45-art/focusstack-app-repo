@@ -18,6 +18,7 @@ export default function Writer() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [status, setStatus] = useState('');
+  const [templates, setTemplates] = useState([]);
   const saveTimer = useRef(null);
 
   async function refresh() {
@@ -29,6 +30,10 @@ export default function Writer() {
 
   useEffect(() => {
     refresh().catch(console.error);
+    api
+      .getTemplates()
+      .then((list) => setTemplates(list.filter((t) => t.doc_type !== 'mindmap')))
+      .catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -77,6 +82,12 @@ export default function Writer() {
     navigate(`/write/${created.id}`);
   }
 
+  async function startFromTemplate(tmpl) {
+    const created = await api.fromTemplate(tmpl.id, tmpl.title);
+    await refresh();
+    navigate(`/write/${created.id}`);
+  }
+
   async function duplicate(docId) {
     const copy = await api.duplicateDocument(docId);
     await refresh();
@@ -108,6 +119,23 @@ export default function Writer() {
             New essay
           </button>
         </div>
+        {templates.length > 0 && (
+          <div>
+            <p className="mb-1 text-xs uppercase tracking-widest text-muted">Start from a template</p>
+            <div className="space-y-1">
+              {templates.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => startFromTemplate(t)}
+                  className="w-full rounded-lg border border-line px-3 py-1.5 text-left text-sm hover:bg-hover"
+                  title={t.blurb}
+                >
+                  {t.title}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <input
           className="input text-sm"
           placeholder="Search pages…"
@@ -151,6 +179,20 @@ export default function Writer() {
             <p className="mt-2 max-w-md text-sm text-muted">
               Blog sparks, personal essays, and money stories live here. Mind maps have their own canvas.
             </p>
+            {templates.length > 0 && (
+              <div className="mt-6 grid w-full max-w-xl gap-3 text-left sm:grid-cols-2">
+                {templates.slice(0, 4).map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => startFromTemplate(t)}
+                    className="rounded-xl border border-line p-4 hover:bg-hover"
+                  >
+                    <p className="font-serif text-lg">{t.title}</p>
+                    <p className="mt-1 text-xs text-muted">{t.blurb}</p>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex h-full flex-col gap-4">
