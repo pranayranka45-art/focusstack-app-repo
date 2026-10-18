@@ -44,6 +44,10 @@ def _snip(row: models.Snippet) -> dict:
     }
 
 
+def _track(row: models.PlaylistTrack) -> dict:
+    return {"id": row.id, "title": row.title, "url": row.url, "created_at": row.created_at}
+
+
 class SqlStore:
     def __init__(self):
         self.name = engine.dialect.name
@@ -61,10 +65,10 @@ class SqlStore:
         finally:
             db.close()
 
-    def list_documents(self, doc_type=None, q=None, limit=200, offset=0):
+    def list_documents(self, user_id: str, doc_type=None, q=None, limit=200, offset=0):
         db = self._session()
         try:
-            query = db.query(models.Document)
+            query = db.query(models.Document).filter(models.Document.user_id == user_id)
             if doc_type:
                 query = query.filter(models.Document.doc_type == doc_type)
             if q:
@@ -85,19 +89,24 @@ class SqlStore:
         finally:
             db.close()
 
-    def get_document(self, doc_id: str):
+    def get_document(self, user_id: str, doc_id: str):
         db = self._session()
         try:
-            row = db.query(models.Document).filter(models.Document.id == doc_id).first()
+            row = (
+                db.query(models.Document)
+                .filter(models.Document.id == doc_id, models.Document.user_id == user_id)
+                .first()
+            )
             return _doc(row) if row else None
         finally:
             db.close()
 
-    def create_document(self, data: dict):
+    def create_document(self, user_id: str, data: dict):
         db = self._session()
         try:
             row = models.Document(
                 id=str(uuid.uuid4()),
+                user_id=user_id,
                 title=data["title"],
                 content=data.get("content") or "",
                 doc_type=data.get("doc_type") or "blog",
@@ -110,10 +119,14 @@ class SqlStore:
         finally:
             db.close()
 
-    def update_document(self, doc_id: str, data: dict):
+    def update_document(self, user_id: str, doc_id: str, data: dict):
         db = self._session()
         try:
-            row = db.query(models.Document).filter(models.Document.id == doc_id).first()
+            row = (
+                db.query(models.Document)
+                .filter(models.Document.id == doc_id, models.Document.user_id == user_id)
+                .first()
+            )
             if not row:
                 return None
             for key, value in data.items():
@@ -126,10 +139,14 @@ class SqlStore:
         finally:
             db.close()
 
-    def delete_document(self, doc_id: str) -> bool:
+    def delete_document(self, user_id: str, doc_id: str) -> bool:
         db = self._session()
         try:
-            row = db.query(models.Document).filter(models.Document.id == doc_id).first()
+            row = (
+                db.query(models.Document)
+                .filter(models.Document.id == doc_id, models.Document.user_id == user_id)
+                .first()
+            )
             if not row:
                 return False
             db.delete(row)
@@ -138,10 +155,10 @@ class SqlStore:
         finally:
             db.close()
 
-    def list_finance(self, kind=None, category=None, from_date=None, to_date=None):
+    def list_finance(self, user_id: str, kind=None, category=None, from_date=None, to_date=None):
         db = self._session()
         try:
-            query = db.query(models.FinanceEntry)
+            query = db.query(models.FinanceEntry).filter(models.FinanceEntry.user_id == user_id)
             if kind:
                 query = query.filter(models.FinanceEntry.kind == kind)
             if category:
@@ -155,24 +172,30 @@ class SqlStore:
         finally:
             db.close()
 
-    def get_finance(self, entry_id: str):
+    def get_finance(self, user_id: str, entry_id: str):
         db = self._session()
         try:
             row = (
                 db.query(models.FinanceEntry)
-                .filter(models.FinanceEntry.id == entry_id)
+                .filter(
+                    models.FinanceEntry.id == entry_id,
+                    models.FinanceEntry.user_id == user_id,
+                )
                 .first()
             )
             return _fin(row) if row else None
         finally:
             db.close()
 
-    def update_finance(self, entry_id: str, data: dict):
+    def update_finance(self, user_id: str, entry_id: str, data: dict):
         db = self._session()
         try:
             row = (
                 db.query(models.FinanceEntry)
-                .filter(models.FinanceEntry.id == entry_id)
+                .filter(
+                    models.FinanceEntry.id == entry_id,
+                    models.FinanceEntry.user_id == user_id,
+                )
                 .first()
             )
             if not row:
@@ -186,11 +209,12 @@ class SqlStore:
         finally:
             db.close()
 
-    def create_finance(self, data: dict):
+    def create_finance(self, user_id: str, data: dict):
         db = self._session()
         try:
             row = models.FinanceEntry(
                 id=str(uuid.uuid4()),
+                user_id=user_id,
                 date=data["date"],
                 category=data.get("category") or "general",
                 amount=float(data["amount"]),
@@ -204,12 +228,15 @@ class SqlStore:
         finally:
             db.close()
 
-    def delete_finance(self, entry_id: str) -> bool:
+    def delete_finance(self, user_id: str, entry_id: str) -> bool:
         db = self._session()
         try:
             row = (
                 db.query(models.FinanceEntry)
-                .filter(models.FinanceEntry.id == entry_id)
+                .filter(
+                    models.FinanceEntry.id == entry_id,
+                    models.FinanceEntry.user_id == user_id,
+                )
                 .first()
             )
             if not row:
@@ -220,11 +247,12 @@ class SqlStore:
         finally:
             db.close()
 
-    def list_snippets(self):
+    def list_snippets(self, user_id: str):
         db = self._session()
         try:
             rows = (
                 db.query(models.Snippet)
+                .filter(models.Snippet.user_id == user_id)
                 .order_by(models.Snippet.updated_at.desc())
                 .all()
             )
@@ -232,19 +260,24 @@ class SqlStore:
         finally:
             db.close()
 
-    def get_snippet(self, snip_id: str):
+    def get_snippet(self, user_id: str, snip_id: str):
         db = self._session()
         try:
-            row = db.query(models.Snippet).filter(models.Snippet.id == snip_id).first()
+            row = (
+                db.query(models.Snippet)
+                .filter(models.Snippet.id == snip_id, models.Snippet.user_id == user_id)
+                .first()
+            )
             return _snip(row) if row else None
         finally:
             db.close()
 
-    def create_snippet(self, data: dict):
+    def create_snippet(self, user_id: str, data: dict):
         db = self._session()
         try:
             row = models.Snippet(
                 id=str(uuid.uuid4()),
+                user_id=user_id,
                 title=data["title"],
                 language=data.get("language") or "python",
                 code=data.get("code") or "",
@@ -257,10 +290,14 @@ class SqlStore:
         finally:
             db.close()
 
-    def update_snippet(self, snip_id: str, data: dict):
+    def update_snippet(self, user_id: str, snip_id: str, data: dict):
         db = self._session()
         try:
-            row = db.query(models.Snippet).filter(models.Snippet.id == snip_id).first()
+            row = (
+                db.query(models.Snippet)
+                .filter(models.Snippet.id == snip_id, models.Snippet.user_id == user_id)
+                .first()
+            )
             if not row:
                 return None
             for key, value in data.items():
@@ -273,10 +310,14 @@ class SqlStore:
         finally:
             db.close()
 
-    def delete_snippet(self, snip_id: str) -> bool:
+    def delete_snippet(self, user_id: str, snip_id: str) -> bool:
         db = self._session()
         try:
-            row = db.query(models.Snippet).filter(models.Snippet.id == snip_id).first()
+            row = (
+                db.query(models.Snippet)
+                .filter(models.Snippet.id == snip_id, models.Snippet.user_id == user_id)
+                .first()
+            )
             if not row:
                 return False
             db.delete(row)
@@ -285,10 +326,10 @@ class SqlStore:
         finally:
             db.close()
 
-    def stats(self) -> dict:
-        docs = self.list_documents()
-        finance = self.list_finance()
-        snippets = self.list_snippets()
+    def stats(self, user_id: str) -> dict:
+        docs = self.list_documents(user_id)
+        finance = self.list_finance(user_id)
+        snippets = self.list_snippets(user_id)
         income = sum(f["amount"] for f in finance if f["kind"] == "income")
         expense = sum(f["amount"] for f in finance if f["kind"] == "expense")
         words_total = sum(
@@ -313,6 +354,51 @@ class SqlStore:
             "expense_total": expense,
             "net": income - expense,
         }
+
+
+    # ---- saved playlist tracks (per user) ----------------------------------
+
+    def list_tracks(self, user_id: str):
+        db = self._session()
+        try:
+            rows = (
+                db.query(models.PlaylistTrack)
+                .filter(models.PlaylistTrack.user_id == user_id)
+                .order_by(models.PlaylistTrack.created_at.asc())
+                .all()
+            )
+            return [_track(r) for r in rows]
+        finally:
+            db.close()
+
+    def create_track(self, user_id: str, data: dict):
+        db = self._session()
+        try:
+            row = models.PlaylistTrack(
+                id=str(uuid.uuid4()), user_id=user_id, title=data["title"], url=data["url"]
+            )
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+            return _track(row)
+        finally:
+            db.close()
+
+    def delete_track(self, user_id: str, track_id: str) -> bool:
+        db = self._session()
+        try:
+            row = (
+                db.query(models.PlaylistTrack)
+                .filter(models.PlaylistTrack.id == track_id, models.PlaylistTrack.user_id == user_id)
+                .first()
+            )
+            if not row:
+                return False
+            db.delete(row)
+            db.commit()
+            return True
+        finally:
+            db.close()
 
 
 _store = None

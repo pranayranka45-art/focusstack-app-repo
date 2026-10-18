@@ -8,11 +8,14 @@ import models
 import settings
 from catalog import lab_runtimes
 from database import Base, engine
+from migrate import run_migrations
+from routers import auth as auth_router
 from routers import documents, finance, lab, studio
 from store import get_store
 from version import APP_VERSION
 
 Base.metadata.create_all(bind=engine)
+run_migrations()
 
 app = FastAPI(
     title="FocusStack API",
@@ -50,6 +53,7 @@ async def attach_request_id(request: Request, call_next):
     return response
 
 
+app.include_router(auth_router.router)
 app.include_router(studio.router)
 app.include_router(documents.router)
 app.include_router(finance.router)

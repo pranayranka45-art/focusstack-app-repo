@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 import schemas
+from auth import require_user
 from store import get_store
 
 router = APIRouter(prefix="/api/finance", tags=["finance"])
@@ -32,8 +33,10 @@ def list_entries(
     category: str | None = Query(default=None, max_length=80),
     from_date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     to_date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    user: dict = Depends(require_user),
 ):
     return get_store().list_finance(
+        user["id"],
         kind=kind.value if kind else None,
         category=category,
         from_date=from_date,
@@ -47,9 +50,11 @@ def summary(
     category: str | None = Query(default=None, max_length=80),
     from_date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     to_date: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    user: dict = Depends(require_user),
 ):
     return _summary(
         get_store().list_finance(
+            user["id"],
             kind=kind.value if kind else None,
             category=category,
             from_date=from_date,
@@ -59,27 +64,27 @@ def summary(
 
 
 @router.get("/{entry_id}", response_model=schemas.FinanceOut)
-def get_entry(entry_id: str):
-    row = get_store().get_finance(entry_id)
+def get_entry(entry_id: str, user: dict = Depends(require_user)):
+    row = get_store().get_finance(user["id"], entry_id)
     if not row:
         raise HTTPException(status_code=404, detail="Entry not found")
     return row
 
 
 @router.post("", response_model=schemas.FinanceOut, status_code=201)
-def create_entry(payload: schemas.FinanceCreate):
-    return get_store().create_finance(payload.model_dump(mode="json"))
+def create_entry(payload: schemas.FinanceCreate, user: dict = Depends(require_user)):
+    return get_store().create_finance(user["id"], payload.model_dump(mode="json"))
 
 
 @router.patch("/{entry_id}", response_model=schemas.FinanceOut)
-def update_entry(entry_id: str, payload: schemas.FinanceUpdate):
-    row = get_store().update_finance(entry_id, payload.model_dump(exclude_unset=True, mode="json"))
+def update_entry(entry_id: str, payload: schemas.FinanceUpdate, user: dict = Depends(require_user)):
+    row = get_store().update_finance(user["id"], entry_id, payload.model_dump(exclude_unset=True, mode="json"))
     if not row:
         raise HTTPException(status_code=404, detail="Entry not found")
     return row
 
 
 @router.delete("/{entry_id}", status_code=204)
-def delete_entry(entry_id: str):
-    if not get_store().delete_finance(entry_id):
+def delete_entry(entry_id: str, user: dict = Depends(require_user)):
+    if not get_store().delete_finance(user["id"], entry_id):
         raise HTTPException(status_code=404, detail="Entry not found")
