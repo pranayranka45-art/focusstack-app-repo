@@ -175,6 +175,26 @@ class PlaylistTrack(BaseModel):
     hint: str
 
 
+class TrackCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    url: str = Field(..., min_length=8, max_length=1000)
+
+    @field_validator("url")
+    @classmethod
+    def http_url(cls, value: str) -> str:
+        value = value.strip()
+        if not value.lower().startswith(("https://", "http://")):
+            raise ValueError("Link must start with https://")
+        return value
+
+
+class TrackOut(BaseModel):
+    id: str
+    title: str
+    url: str
+    created_at: datetime
+
+
 class HealthOut(BaseModel):
     status: str
     service: str

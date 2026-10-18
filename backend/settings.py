@@ -55,3 +55,28 @@ def database_label() -> str:
     host = parsed.hostname or "localhost"
     port = parsed.port or 5432
     return f"{host}:{port}/{db_name}"
+
+
+# ---- Auth -------------------------------------------------------------
+# Public origin of the site (OAuth redirect URIs and post-login redirects).
+APP_URL = os.getenv("APP_URL", "http://localhost:5173").strip().rstrip("/")
+COOKIE_SECURE = APP_URL.startswith("https://")
+SESSION_DAYS = int(os.getenv("SESSION_DAYS", "30"))
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "").strip()
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "").strip()
+
+# Optional: comma-separated emails allowed to register/sign in. Empty = open signups.
+SIGNUP_ALLOWLIST = {
+    e.strip().lower() for e in os.getenv("SIGNUP_ALLOWLIST", "").split(",") if e.strip()
+}
+
+
+def oauth_enabled(provider: str) -> bool:
+    if provider == "google":
+        return bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
+    if provider == "github":
+        return bool(GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET)
+    return False

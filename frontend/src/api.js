@@ -1,5 +1,11 @@
 const API_BASE = '/api';
 
+function errorMessage(detail) {
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg.replace(/^Value error, /, '');
+  return 'Request failed';
+}
+
 async function request(path, options = {}) {
   const headers = { ...options.headers };
   if (options.body && !(options.body instanceof FormData)) {
@@ -8,7 +14,11 @@ async function request(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(typeof err.detail === 'string' ? err.detail : 'Request failed');
+    // A 401 on a data request means the session ended; auth endpoints report their own errors.
+    if (res.status === 401 && !path.startsWith('/auth/')) {
+      window.dispatchEvent(new Event('auth:expired'));
+    }
+    throw new Error(errorMessage(err.detail));
   }
   if (res.status === 204) return null;
   return res.json();
@@ -16,6 +26,14 @@ async function request(path, options = {}) {
 
 export const api = {
   health: () => request('/health'),
+  me: () => request('/auth/me'),
+  authProviders: () => request('/auth/providers'),
+  signup: (data) => request('/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
+  login: (data) => request('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  logout: () => request('/auth/logout', { method: 'POST' }),
+  getSavedTracks: () => request('/playlist/saved'),
+  saveTrack: (data) => request('/playlist/saved', { method: 'POST', body: JSON.stringify(data) }),
+  deleteSavedTrack: (id) => request(`/playlist/saved/${id}`, { method: 'DELETE' }),
   getStats: () => request('/dashboard/stats'),
   getTemplates: (docType) =>
     request(`/templates${docType ? `?doc_type=${docType}` : ''}`),

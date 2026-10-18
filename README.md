@@ -11,10 +11,29 @@ A writing studio for **blog ideas**, **mind maps**, **personal essays**, and **p
 | **Mind maps** | Drag-and-drop idea maps |
 | **Finances** | Ledger + written monthly stories |
 | **Templates** | Structured starts (story arcs, braided essays, life maps, budgets) |
-| **Playlist** | Generated writing rooms (lo-fi, rain, café, forest, piano, train) |
+| **Playlist** | Six original generated rooms (lo-fi, rain, café, forest, piano, train) plus your own YouTube / Spotify / SoundCloud links |
 | **Code lab** | Run Python, JavaScript, or Java cells |
 
 Appearance: **Light** and **Dark** in the sidebar.
+
+## Accounts and sign-in
+
+Everyone gets a private workspace: pages, maps, finances and snippets belong to the account that created them. Sign up with **email + password**, or **continue with Google or GitHub**. The playlist rooms work without an account.
+
+- The **first account created adopts all data that existed before accounts were added**, so sign up yourself first.
+- Passwords are hashed with scrypt; sessions are random tokens (stored hashed) in an HttpOnly cookie.
+- Set `SIGNUP_ALLOWLIST=you@example.com` to restrict who can create an account (recommended while the code lab is enabled).
+- Email addresses are not verified for password signups. Google and GitHub sign-ins use the provider-verified email.
+
+### Setting up Google and GitHub sign-in
+
+Set `APP_URL` to the public address (`https://www.focusstack.tech` in production, `http://localhost:5173` locally), then create the two OAuth apps. A provider button stays disabled until its ID and secret are set.
+
+**Google**: [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → *Create credentials* → *OAuth client ID* → *Web application*. Authorized redirect URI: `APP_URL/api/auth/google/callback`. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. On the OAuth consent screen, publish the app (move from *Testing* to *In production*), or only listed test users can sign in.
+
+**GitHub**: [Developer settings](https://github.com/settings/developers) → *New OAuth App*. Homepage URL `APP_URL`, callback URL `APP_URL/api/auth/github/callback`. Generate a client secret, then set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
+
+On DigitalOcean, add these as environment variables on the backend component (encrypt the secrets). Locally, put them in `backend/.env`.
 
 ## Database: PostgreSQL
 
@@ -77,6 +96,7 @@ App: http://localhost:5173
 - **Python** uses the same interpreter as the API.
 - **JavaScript** needs Node.js on PATH.
 - **Java** needs a JDK (`javac` and `java`). Cells time out after 8 seconds.
+- Snippets run with a minimal environment (no server secrets), as the unprivileged `nobody` user when the API runs as root (the Docker image), with CPU, file-size and process limits. This is defence in depth, not a full sandbox: network access isn't blocked. If the site is public, restrict signups or move execution to an isolated service.
 
 ## License
 

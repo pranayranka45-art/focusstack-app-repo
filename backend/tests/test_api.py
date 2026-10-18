@@ -13,6 +13,12 @@ from fastapi.testclient import TestClient  # noqa: E402
 from main import app  # noqa: E402
 
 client = TestClient(app)
+# The shared client is logged in as the first account (which also adopts any legacy rows).
+_owner = client.post(
+    "/api/auth/signup",
+    json={"name": "Owner", "email": "owner@example.com", "password": "correct horse"},
+)
+assert _owner.status_code == 201, _owner.text
 
 
 def test_health_and_index():
