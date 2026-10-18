@@ -1,0 +1,174 @@
+diff --git a/.do/app.yaml b/.do/app.yaml
+index 798d1af..e0e2f30 100644
+--- a/.do/app.yaml
++++ b/.do/app.yaml
+@@ -19,14 +19,21 @@ services:
+     dockerfile_path: Dockerfile
+     http_port: 8000
+     instance_count: 1
+-    instance_size_slug: basic-xxs
++    instance_size_slug: basic-xs   # JDK + Node + Python need more than 512 MB
++    health_check:
++      http_path: /api/health
++    # Route /api straight to the API service at the platform edge. No nginx
++    # proxy hop, no Docker DNS (127.0.0.11) needed.
++    routes:
++      - path: /api
++        preserve_path_prefix: true
+     envs:
+       - key: DATABASE_URL
+         scope: RUN_TIME
+         value: ${db.DATABASE_URL}
+       - key: CORS_ORIGINS
+         scope: RUN_TIME
+-        value: ${web.PUBLIC_URL}
++        value: https://www.focusstack.tech,https://focusstack.tech
+ 
+   - name: web
+     github:
+@@ -40,10 +47,3 @@ services:
+     instance_size_slug: basic-xxs
+     routes:
+       - path: /
+-    envs:
+-      - key: API_UPSTREAM_HOST
+-        scope: RUN_TIME
+-        value: ${api.HOSTNAME}
+-      - key: API_UPSTREAM_PORT
+-        scope: RUN_TIME
+-        value: "8000"
+diff --git a/frontend/src/pages/Dashboard.jsx b/frontend/src/pages/Dashboard.jsx
+index df6961f..c738c38 100644
+--- a/frontend/src/pages/Dashboard.jsx
++++ b/frontend/src/pages/Dashboard.jsx
+@@ -15,14 +15,16 @@ function Stat({ label, value, hint }) {
+ export default function Dashboard() {
+   const [stats, setStats] = useState(null);
+   const [health, setHealth] = useState(null);
++  const [statsError, setStatsError] = useState(false);
+ 
+   useEffect(() => {
+-    api.getStats().then(setStats).catch(console.error);
++    api.getStats().then(setStats).catch((e) => {
++      console.error(e);
++      setStatsError(true);
++    });
+     api.health().then(setHealth).catch(console.error);
+   }, []);
+ 
+-  if (!stats) return <p className="text-muted">Opening the studio…</p>;
+-
+   return (
+     <div className="space-y-8">
+       <header className="max-w-2xl">
+@@ -36,6 +38,21 @@ export default function Dashboard() {
+         </p>
+       </header>
+ 
++      {statsError && (
++        <p className="card text-sm text-muted">
++          Couldn't reach the FocusStack API. Pages that need saved data (templates, maps, lab) won't work until it's back.
++        </p>
++      )}
++
++      {!stats && !statsError && (
++        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
++          {[0, 1, 2, 3, 4].map((i) => (
++            <div key={i} className="card h-24 animate-pulse" />
++          ))}
++        </div>
++      )}
++
++      {stats && (
+       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+         <Stat label="Pages" value={stats.documents_total} hint={`${stats.blogs} blog · ${stats.essays} essays`} />
+         <Stat label="Words" value={stats.words_total ?? 0} hint="Across essays and posts" />
+@@ -47,6 +64,7 @@ export default function Dashboard() {
+           hint={`${stats.income_total.toFixed(0)} in · ${stats.expense_total.toFixed(0)} out`}
+         />
+       </div>
++      )}
+ 
+       <div className="grid gap-4 lg:grid-cols-3">
+         {[
+diff --git a/frontend/src/pages/Writer.jsx b/frontend/src/pages/Writer.jsx
+index 3255c8a..685873b 100644
+--- a/frontend/src/pages/Writer.jsx
++++ b/frontend/src/pages/Writer.jsx
+@@ -18,6 +18,7 @@ export default function Writer() {
+   const [title, setTitle] = useState('');
+   const [content, setContent] = useState('');
+   const [status, setStatus] = useState('');
++  const [templates, setTemplates] = useState([]);
+   const saveTimer = useRef(null);
+ 
+   async function refresh() {
+@@ -29,6 +30,10 @@ export default function Writer() {
+ 
+   useEffect(() => {
+     refresh().catch(console.error);
++    api
++      .getTemplates()
++      .then((list) => setTemplates(list.filter((t) => t.doc_type !== 'mindmap')))
++      .catch(console.error);
+   }, []);
+ 
+   useEffect(() => {
+@@ -77,6 +82,12 @@ export default function Writer() {
+     navigate(`/write/${created.id}`);
+   }
+ 
++  async function startFromTemplate(tmpl) {
++    const created = await api.fromTemplate(tmpl.id, tmpl.title);
++    await refresh();
++    navigate(`/write/${created.id}`);
++  }
++
+   async function duplicate(docId) {
+     const copy = await api.duplicateDocument(docId);
+     await refresh();
+@@ -108,6 +119,23 @@ export default function Writer() {
+             New essay
+           </button>
+         </div>
++        {templates.length > 0 && (
++          <div>
++            <p className="mb-1 text-xs uppercase tracking-widest text-muted">Start from a template</p>
++            <div className="space-y-1">
++              {templates.map((t) => (
++                <button
++                  key={t.id}
++                  onClick={() => startFromTemplate(t)}
++                  className="w-full rounded-lg border border-line px-3 py-1.5 text-left text-sm hover:bg-hover"
++                  title={t.blurb}
++                >
++                  {t.title}
++                </button>
++              ))}
++            </div>
++          </div>
++        )}
+         <input
+           className="input text-sm"
+           placeholder="Search pages…"
+@@ -151,6 +179,20 @@ export default function Writer() {
+             <p className="mt-2 max-w-md text-sm text-muted">
+               Blog sparks, personal essays, and money stories live here. Mind maps have their own canvas.
+             </p>
++            {templates.length > 0 && (
++              <div className="mt-6 grid w-full max-w-xl gap-3 text-left sm:grid-cols-2">
++                {templates.slice(0, 4).map((t) => (
++                  <button
++                    key={t.id}
++                    onClick={() => startFromTemplate(t)}
++                    className="rounded-xl border border-line p-4 hover:bg-hover"
++                  >
++                    <p className="font-serif text-lg">{t.title}</p>
++                    <p className="mt-1 text-xs text-muted">{t.blurb}</p>
++                  </button>
++                ))}
++              </div>
++            )}
+           </div>
+         ) : (
+           <div className="flex h-full flex-col gap-4">
